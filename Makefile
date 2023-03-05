@@ -1,6 +1,6 @@
 YoutubeExplode.dll:
 	dotnet build /p:EnableWindowsTargeting=true
-	ln -sf YoutubeExplode/bin/Debug/net5.0/YoutubeExplode.dll .
+	cp -a YoutubeExplode/bin/Debug/net5.0/YoutubeExplode.dll .
 .PHONY: YoutubeExplode.dll
 
 ubuntu-deps:
@@ -18,7 +18,7 @@ ubuntu-deps:
 tmp/AngleSharp.dll:
 	mkdir -p tmp
 	cd tmp && nuget install AngleSharp
-	cd tmp && ln -s AngleSharp.1.0.1/lib/net7.0/*.dll .
+	cd tmp && ln -sf AngleSharp.1.0.1/lib/net7.0/*.dll .
 
 test-pythonnet: YoutubeExplode.dll tmp/AngleSharp.dll
 	mkdir -p tmp
