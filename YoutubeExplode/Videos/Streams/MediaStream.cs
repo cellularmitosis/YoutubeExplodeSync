@@ -9,7 +9,7 @@ using YoutubeExplode.Utils;
 namespace YoutubeExplode.Videos.Streams;
 
 // Works around YouTube's rate throttling, provides seeking support and some resiliency
-internal class MediaStream : Stream
+internal partial class MediaStream : Stream
 {
     private readonly HttpClient _http;
     private readonly IStreamInfo _streamInfo;
@@ -149,5 +149,26 @@ internal class MediaStream : Stream
             ResetSegment();
 
         base.Dispose(disposing);
+    }
+}
+
+internal partial class MediaStream : Stream
+{
+    public void Initialize(CancellationToken cancellationToken = default) {
+        ResolveSegment(cancellationToken);
+    }
+
+    private Stream ResolveSegment(CancellationToken cancellationToken = default)
+    {
+        if (_segmentStream is not null)
+            return _segmentStream;
+
+        var from = Position;
+        var to = Position + _segmentLength - 1;
+        var url = UriEx.SetQueryParameter(_streamInfo.Url, "range", $"{from}-{to}");
+
+        var stream = _http.GetStreamAsync(url, cancellationToken).Result;
+
+        return _segmentStream = stream;
     }
 }

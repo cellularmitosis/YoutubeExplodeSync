@@ -8,7 +8,7 @@ namespace YoutubeExplode.Search;
 /// <summary>
 /// Metadata associated with a YouTube playlist returned by a search query.
 /// </summary>
-public class PlaylistSearchResult : ISearchResult, IPlaylist
+public partial class PlaylistSearchResult : ISearchResult, IPlaylist
 {
     /// <inheritdoc />
     public PlaylistId Id { get; }
@@ -43,4 +43,22 @@ public class PlaylistSearchResult : ISearchResult, IPlaylist
     /// <inheritdoc />
     [ExcludeFromCodeCoverage]
     public override string ToString() => $"Playlist ({Title})";
+}
+
+public partial class PlaylistSearchResult : ISearchResult, IPlaylist
+{
+    public VideoSearchResult? asVideoSearchResult()
+    {
+        return null;
+    }
+
+    public ChannelSearchResult? asChannelSearchResult()
+    {
+        return null;
+    }
+
+    public PlaylistSearchResult? asPlaylistSearchResult()
+    {
+        return this as PlaylistSearchResult;
+    }
 }

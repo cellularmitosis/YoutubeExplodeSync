@@ -1,3 +1,9 @@
+# YoutubeExplodeSync
+
+This fork of YoutubeExplode adds synchronous interfaces for all of the async functions.
+
+This makes the dll more readily usable by [pythonnet](https://github.com/pythonnet/pythonnet).
+
 # YoutubeExplode
 
 [![Made in Ukraine](https://img.shields.io/badge/made_in-ukraine-ffd700.svg?labelColor=0057b7)](https://tyrrrz.me/ukraine)

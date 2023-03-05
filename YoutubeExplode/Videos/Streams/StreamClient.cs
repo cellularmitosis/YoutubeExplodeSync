@@ -18,7 +18,7 @@ namespace YoutubeExplode.Videos.Streams;
 /// <summary>
 /// Operations related to media streams of YouTube videos.
 /// </summary>
-public class StreamClient
+public partial class StreamClient
 {
     private readonly HttpClient _http;
     private readonly StreamController _controller;
@@ -312,5 +312,274 @@ public class StreamClient
     {
         using var destination = File.Create(filePath);
         await CopyToAsync(streamInfo, destination, progress, cancellationToken);
+    }
+}
+
+public partial class StreamClient
+{
+    private void EnsureCipherManifestResolved(CancellationToken cancellationToken)
+    {
+        if (_cipherManifest is not null && !string.IsNullOrWhiteSpace(_signatureTimestamp))
+            return;
+
+        var playerSource = _controller.GetPlayerSource(cancellationToken);
+
+        lock (_cipherLock)
+        {
+            _cipherManifest =
+                playerSource.CipherManifest ??
+                throw new YoutubeExplodeException("Could not get cipher manifest.");
+
+            _signatureTimestamp =
+                playerSource.SignatureTimestamp ??
+                throw new YoutubeExplodeException("Could not get signature timestamp.");
+        }
+    }
+
+    private IStreamInfo[] GetStreamInfos(
+        IEnumerable<IStreamData> streamDatas,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        var infos = new List<IStreamInfo>();
+        foreach (var streamData in streamDatas)
+        {
+            var itag =
+                streamData.Itag ??
+                throw new YoutubeExplodeException("Could not extract stream itag.");
+
+            var url =
+                streamData.Url ??
+                throw new YoutubeExplodeException("Could not extract stream URL.");
+
+            // Handle cipher-protected streams
+            if (!string.IsNullOrWhiteSpace(streamData.Signature))
+            {
+                if (_cipherManifest is null)
+                    throw new YoutubeExplodeException("Stream is protected but the cipher manifest was not resolved.");
+
+                url = UriEx.SetQueryParameter(
+                    url,
+                    streamData.SignatureParameter ?? "sig",
+                    _cipherManifest.Decipher(streamData.Signature)
+                );
+            }
+
+            var contentLength =
+                streamData.ContentLength ??
+                _http.TryGetContentLength(url, false, cancellationToken) ??
+                0;
+
+            // Stream cannot be accessed
+            if (contentLength <= 0)
+                continue;
+
+            var container =
+                streamData.Container?.Pipe(s => new Container(s)) ??
+                throw new YoutubeExplodeException("Could not extract stream container.");
+
+            var bitrate =
+                streamData.Bitrate?.Pipe(s => new Bitrate(s)) ??
+                throw new YoutubeExplodeException("Could not extract stream bitrate.");
+
+            // Muxed or video-only stream
+            if (!string.IsNullOrWhiteSpace(streamData.VideoCodec))
+            {
+                var framerate = streamData.VideoFramerate ?? 24;
+
+                var videoQuality = !string.IsNullOrWhiteSpace(streamData.VideoQualityLabel)
+                    ? VideoQuality.FromLabel(streamData.VideoQualityLabel, framerate)
+                    : VideoQuality.FromItag(itag, framerate);
+
+                var videoResolution =
+                    streamData.VideoWidth is not null &&
+                    streamData.VideoHeight is not null
+                        ? new Resolution(streamData.VideoWidth.Value, streamData.VideoHeight.Value)
+                        : videoQuality.GetDefaultVideoResolution();
+
+                // Muxed
+                if (!string.IsNullOrWhiteSpace(streamData.AudioCodec))
+                {
+                    var streamInfo = new MuxedStreamInfo(
+                        url,
+                        container,
+                        new FileSize(contentLength),
+                        bitrate,
+                        streamData.AudioCodec,
+                        streamData.VideoCodec,
+                        videoQuality,
+                        videoResolution
+                    );
+
+                    infos.Add(streamInfo);
+                }
+                // Video-only
+                else
+                {
+                    var streamInfo = new VideoOnlyStreamInfo(
+                        url,
+                        container,
+                        new FileSize(contentLength),
+                        bitrate,
+                        streamData.VideoCodec,
+                        videoQuality,
+                        videoResolution
+                    );
+
+                    infos.Add(streamInfo);
+                }
+            }
+            // Audio-only
+            else if (!string.IsNullOrWhiteSpace(streamData.AudioCodec))
+            {
+                var streamInfo = new AudioOnlyStreamInfo(
+                    url,
+                    container,
+                    new FileSize(contentLength),
+                    bitrate,
+                    streamData.AudioCodec
+                );
+
+                infos.Add(streamInfo);
+            }
+            else
+            {
+                throw new YoutubeExplodeException("Could not extract stream codec.");
+            }
+        }
+        return infos.ToArray();
+    }
+
+    private IStreamInfo[] GetStreamInfos(
+        VideoId videoId,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        var playerResponse = _controller.GetPlayerResponse(videoId, cancellationToken);
+        var infos = new List<IStreamInfo>();
+
+        // Check if the video is pay-to-play
+        if (!string.IsNullOrWhiteSpace(playerResponse.PreviewVideoId))
+        {
+            throw new VideoRequiresPurchaseException(
+                $"Video '{videoId}' requires purchase and cannot be played.",
+                playerResponse.PreviewVideoId
+            );
+        }
+
+        // If the video is unplayable, try one more time by fetching the player response
+        // with signature deciphering. This is required for age-restricted videos.
+        if (!playerResponse.IsPlayable)
+        {
+            EnsureCipherManifestResolvedAsync(cancellationToken);
+            playerResponse = _controller.GetPlayerResponse(videoId, _signatureTimestamp, cancellationToken);
+        }
+
+        // If the video is still unplayable, error out
+        if (!playerResponse.IsPlayable)
+        {
+            throw new VideoUnplayableException(
+                $"Video '{videoId}' is unplayable. " +
+                $"Reason: '{playerResponse.PlayabilityError}'."
+            );
+        }
+
+        // Extract streams from player response
+        foreach (var streamInfo in GetStreamInfos(playerResponse.Streams, cancellationToken))
+            infos.Add(streamInfo);
+
+        // Extract streams from DASH manifest
+        if (!string.IsNullOrWhiteSpace(playerResponse.DashManifestUrl))
+        {
+            var dashManifest = _controller.GetDashManifest(
+                playerResponse.DashManifestUrl,
+                cancellationToken
+            );
+
+            foreach (var streamInfo in GetStreamInfos(dashManifest.Streams, cancellationToken))
+                infos.Add(streamInfo);
+        }
+
+        return infos.ToArray();
+    }
+
+    public StreamManifest GetManifest(
+        VideoId videoId,
+        CancellationToken cancellationToken = default)
+    {
+        for (var retriesRemaining = 5;; retriesRemaining--)
+        {
+            var streamInfos = GetStreamInfos(videoId, cancellationToken);
+
+            if (!streamInfos.Any())
+            {
+                throw new VideoUnplayableException(
+                    $"Video '{videoId}' does not contain any playable streams."
+                );
+            }
+
+            // YouTube sometimes returns stream URLs that produce 403 Forbidden errors when accessed.
+            // This happens for both protected and non-protected streams, so the cause is unclear.
+            // As a workaround, we can access one of the stream URLs and retry if it fails.
+            using var response = _http.HeadAsync(streamInfos.First().Url, cancellationToken).Result;
+            if ((int)response.StatusCode == 403 && retriesRemaining > 0)
+                continue;
+
+            response.EnsureSuccessStatusCode();
+
+            return new StreamManifest(streamInfos);
+        }
+    }
+
+    public string GetHttpLiveStreamUrl(
+        VideoId videoId,
+        CancellationToken cancellationToken = default)
+    {
+        var playerResponse = _controller.GetPlayerResponse(videoId, cancellationToken);
+        if (!playerResponse.IsPlayable)
+        {
+            throw new VideoUnplayableException(
+                $"Video '{videoId}' is unplayable. " +
+                $"Reason: '{playerResponse.PlayabilityError}'."
+            );
+        }
+
+        if (string.IsNullOrWhiteSpace(playerResponse.HlsManifestUrl))
+        {
+            throw new YoutubeExplodeException(
+                "Could not extract HTTP Live Stream manifest URL. " +
+                $"Video '{videoId}' is likely not a live stream."
+            );
+        }
+
+        return playerResponse.HlsManifestUrl;
+    }
+
+    public Stream Get(
+        IStreamInfo streamInfo,
+        CancellationToken cancellationToken = default)
+    {
+        var stream = new MediaStream(_http, streamInfo);
+        stream.Initialize(cancellationToken);
+
+        return stream;
+    }
+
+    public void CopyTo(
+        IStreamInfo streamInfo,
+        Stream destination,
+        IProgress<double>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        using var input = Get(streamInfo, cancellationToken);
+        input.CopyTo(destination, progress, cancellationToken);
+    }
+
+    public void Download(
+        IStreamInfo streamInfo,
+        string filePath,
+        IProgress<double>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        using var destination = File.Create(filePath);
+        CopyTo(streamInfo, destination, progress, cancellationToken);
     }
 }

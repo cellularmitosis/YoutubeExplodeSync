@@ -14,7 +14,7 @@ namespace YoutubeExplode.Search;
 /// <summary>
 /// Operations related to YouTube search.
 /// </summary>
-public class SearchClient
+public partial class SearchClient
 {
     private readonly SearchController _controller;
 
@@ -257,4 +257,270 @@ public class SearchClient
         GetResultBatchesAsync(searchQuery, SearchFilter.Channel, cancellationToken)
             .FlattenAsync()
             .OfTypeAsync<ChannelSearchResult>();
+}
+
+public partial class SearchClient
+{
+    public PagedSearchResults GetResults(
+        string searchQuery,
+        SearchFilter searchFilter,
+        string? continuationToken = null,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        var encounteredIds = new HashSet<string>(StringComparer.Ordinal);
+        var results = new List<ISearchResult>();
+        var searchResults = _controller.GetSearchResponse(
+            searchQuery,
+            searchFilter,
+            continuationToken,
+            cancellationToken
+        );
+
+        // Video results
+        foreach (var videoData in searchResults.Videos)
+        {
+            if (searchFilter is not SearchFilter.None and not SearchFilter.Video)
+            {
+                Debug.Fail("Did not expect videos in search results.");
+                break;
+            }
+
+            var videoId =
+                videoData.Id ??
+                throw new YoutubeExplodeException("Could not extract video ID.");
+
+            // Don't yield the same result twice
+            if (!encounteredIds.Add(videoId))
+                continue;
+
+            var videoTitle =
+                videoData.Title ??
+                throw new YoutubeExplodeException("Could not extract video title.");
+
+            var videoChannelTitle =
+                videoData.Author ??
+                throw new YoutubeExplodeException("Could not extract video author.");
+
+            var videoChannelId =
+                videoData.ChannelId ??
+                throw new YoutubeExplodeException("Could not extract video channel ID.");
+
+            var videoThumbnails = videoData.Thumbnails.Select(t =>
+            {
+                var thumbnailUrl =
+                    t.Url ??
+                    throw new YoutubeExplodeException("Could not extract video thumbnail URL.");
+
+                var thumbnailWidth =
+                    t.Width ??
+                    throw new YoutubeExplodeException("Could not extract video thumbnail width.");
+
+                var thumbnailHeight =
+                    t.Height ??
+                    throw new YoutubeExplodeException("Could not extract video thumbnail height.");
+
+                var thumbnailResolution = new Resolution(thumbnailWidth, thumbnailHeight);
+
+                return new Thumbnail(thumbnailUrl, thumbnailResolution);
+            }).Concat(Thumbnail.GetDefaultSet(videoId)).ToArray();
+
+            var video = new VideoSearchResult(
+                videoId,
+                videoTitle,
+                new Author(videoChannelId, videoChannelTitle),
+                videoData.Duration,
+                videoThumbnails
+            );
+
+            results.Add(video);
+        }
+
+        // Playlist results
+        foreach (var playlistData in searchResults.Playlists)
+        {
+            if (searchFilter is not SearchFilter.None and not SearchFilter.Playlist)
+            {
+                Debug.Fail("Did not expect playlists in search results.");
+                break;
+            }
+
+            var playlistId =
+                playlistData.Id ??
+                throw new YoutubeExplodeException("Could not extract playlist ID.");
+
+            // Don't yield the same result twice
+            if (!encounteredIds.Add(playlistId))
+                continue;
+
+            var playlistTitle =
+                playlistData.Title ??
+                throw new YoutubeExplodeException("Could not extract playlist title.");
+
+            // System playlists have no author
+            var playlistAuthor =
+                !string.IsNullOrWhiteSpace(playlistData.ChannelId) &&
+                !string.IsNullOrWhiteSpace(playlistData.Author)
+                    ? new Author(playlistData.ChannelId, playlistData.Author)
+                    : null;
+
+            var playlistThumbnails = playlistData.Thumbnails.Select(t =>
+            {
+                var thumbnailUrl =
+                    t.Url ??
+                    throw new YoutubeExplodeException("Could not extract playlist thumbnail URL.");
+
+                var thumbnailWidth =
+                    t.Width ??
+                    throw new YoutubeExplodeException("Could not extract playlist thumbnail width.");
+
+                var thumbnailHeight =
+                    t.Height ??
+                    throw new YoutubeExplodeException("Could not extract playlist thumbnail height.");
+
+                var thumbnailResolution = new Resolution(thumbnailWidth, thumbnailHeight);
+
+                return new Thumbnail(thumbnailUrl, thumbnailResolution);
+            }).ToArray();
+
+            var playlist = new PlaylistSearchResult(
+                playlistId,
+                playlistTitle,
+                playlistAuthor,
+                playlistThumbnails
+            );
+
+            results.Add(playlist);
+        }
+
+        // Channel results
+        foreach (var channelData in searchResults.Channels)
+        {
+            if (searchFilter is not SearchFilter.None and not SearchFilter.Channel)
+            {
+                Debug.Fail("Did not expect channels in search results.");
+                break;
+            }
+
+            var channelId =
+                channelData.Id ??
+                throw new YoutubeExplodeException("Could not extract channel ID.");
+
+            var channelTitle =
+                channelData.Title ??
+                throw new YoutubeExplodeException("Could not extract channel title.");
+
+            var channelThumbnails = channelData.Thumbnails.Select(t =>
+            {
+                var thumbnailUrl =
+                    t.Url ??
+                    throw new YoutubeExplodeException("Could not extract channel thumbnail URL.");
+
+                var thumbnailWidth =
+                    t.Width ??
+                    throw new YoutubeExplodeException("Could not extract channel thumbnail width.");
+
+                var thumbnailHeight =
+                    t.Height ??
+                    throw new YoutubeExplodeException("Could not extract channel thumbnail height.");
+
+                var thumbnailResolution = new Resolution(thumbnailWidth, thumbnailHeight);
+
+                return new Thumbnail(thumbnailUrl, thumbnailResolution);
+            }).ToArray();
+
+            var channel = new ChannelSearchResult(
+                channelId,
+                channelTitle,
+                channelThumbnails
+            );
+
+            results.Add(channel);
+        }
+
+        continuationToken = searchResults.ContinuationToken;
+
+        var pagedResults = new PagedSearchResults(
+            continuationToken: searchResults.ContinuationToken,
+            results: results.ToArray()
+        );
+        return pagedResults;
+    }
+
+    public PagedSearchResults GetResults(
+        string searchQuery,
+        string? continuationToken = null,
+        CancellationToken cancellationToken = default
+    ) {
+        return GetResults(searchQuery, SearchFilter.None, continuationToken, cancellationToken);
+    }
+
+    public PagedSearchResults GetVideos(
+        string searchQuery,
+        string? continuationToken = null,
+        CancellationToken cancellationToken = default
+    ) {
+        return GetResults(searchQuery, SearchFilter.Video, continuationToken, cancellationToken);
+    }
+
+    public PagedSearchResults GetPlaylists(
+        string searchQuery,
+        string? continuationToken = null,
+        CancellationToken cancellationToken = default
+    ) {
+        return GetResults(searchQuery, SearchFilter.Playlist, continuationToken, cancellationToken);
+    }
+
+    public PagedSearchResults GetChannels(
+        string searchQuery,
+        string? continuationToken = null,
+        CancellationToken cancellationToken = default
+    ) {
+        return GetResults(searchQuery, SearchFilter.Channel, continuationToken, cancellationToken);
+    }
+}
+
+public class PagedSearchResults {
+    public string? ContinuationToken { get; }
+    public ISearchResult[] Results { get; }
+
+    public PagedSearchResults(
+        string? continuationToken,
+        ISearchResult[] results
+    ) {
+        ContinuationToken = continuationToken;
+        Results = results;
+    }
+
+    public VideoSearchResult[] Videos() {
+        List<VideoSearchResult> castedResults = new List<VideoSearchResult>();
+        foreach (ISearchResult result in Results) {
+            var casted = result as VideoSearchResult;
+            if (casted is not null) {
+                castedResults.Add(casted);
+            }
+        }
+        return castedResults.ToArray();
+    }
+
+    public PlaylistSearchResult[] Playlists() {
+        List<PlaylistSearchResult> castedResults = new List<PlaylistSearchResult>();
+        foreach (ISearchResult result in Results) {
+            var casted = result as PlaylistSearchResult;
+            if (casted is not null) {
+                castedResults.Add(casted);
+            }
+        }
+        return castedResults.ToArray();
+    }
+
+    public ChannelSearchResult[] Channels() {
+        List<ChannelSearchResult> castedResults = new List<ChannelSearchResult>();
+        foreach (ISearchResult result in Results) {
+            var casted = result as ChannelSearchResult;
+            if (casted is not null) {
+                castedResults.Add(casted);
+            }
+        }
+        return castedResults.ToArray();
+    }
 }

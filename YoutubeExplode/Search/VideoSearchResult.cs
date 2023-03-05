@@ -9,7 +9,7 @@ namespace YoutubeExplode.Search;
 /// <summary>
 /// Metadata associated with a YouTube video returned by a search query.
 /// </summary>
-public class VideoSearchResult : ISearchResult, IVideo
+public partial class VideoSearchResult : ISearchResult, IVideo
 {
     /// <inheritdoc />
     public VideoId Id { get; }
@@ -49,4 +49,22 @@ public class VideoSearchResult : ISearchResult, IVideo
     /// <inheritdoc />
     [ExcludeFromCodeCoverage]
     public override string ToString() => $"Video ({Title})";
+}
+
+public partial class VideoSearchResult : ISearchResult, IVideo
+{
+    public VideoSearchResult? asVideoSearchResult()
+    {
+        return this as VideoSearchResult;
+    }
+
+    public ChannelSearchResult? asChannelSearchResult()
+    {
+        return null;
+    }
+
+    public PlaylistSearchResult? asPlaylistSearchResult()
+    {
+        return null;
+    }
 }

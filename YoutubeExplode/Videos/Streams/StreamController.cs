@@ -7,7 +7,7 @@ using YoutubeExplode.Exceptions;
 
 namespace YoutubeExplode.Videos.Streams;
 
-internal class StreamController : VideoController
+internal partial class StreamController : VideoController
 {
     public StreamController(HttpClient http) : base(http)
     {
@@ -36,4 +36,33 @@ internal class StreamController : VideoController
         DashManifest.Parse(
             await Http.GetStringAsync(url, cancellationToken)
         );
+}
+
+internal partial class StreamController : VideoController
+{
+    public PlayerSource GetPlayerSource(
+        CancellationToken cancellationToken = default)
+    {
+        var iframe = Http.GetStringAsync("https://www.youtube.com/iframe_api", cancellationToken).Result;
+
+        var version = Regex.Match(iframe, @"player\\?/([0-9a-fA-F]{8})\\?/").Groups[1].Value;
+        if (string.IsNullOrWhiteSpace(version))
+            throw new YoutubeExplodeException("Could not extract player version.");
+
+        return PlayerSource.Parse(
+            Http.GetStringAsync(
+                $"https://www.youtube.com/s/player/{version}/player_ias.vflset/en_US/base.js",
+                cancellationToken
+            ).Result
+        );
+    }
+
+    public DashManifest GetDashManifest(
+        string url,
+        CancellationToken cancellationToken = default
+    ) {
+        return DashManifest.Parse(
+            Http.GetStringAsync(url, cancellationToken).Result
+        );
+    }
 }

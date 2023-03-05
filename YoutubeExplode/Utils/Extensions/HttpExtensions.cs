@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 
 namespace YoutubeExplode.Utils.Extensions;
 
-internal static class HttpExtensions
+internal static partial class HttpExtensions
 {
     public static HttpRequestMessage Clone(this HttpRequestMessage request)
     {
@@ -39,6 +39,23 @@ internal static class HttpExtensions
         CancellationToken cancellationToken = default)
     {
         using var response = await http.HeadAsync(requestUri, cancellationToken);
+
+        if (ensureSuccess)
+            response.EnsureSuccessStatusCode();
+
+        return response.Content.Headers.ContentLength;
+    }
+}
+
+internal static partial class HttpExtensions
+{
+    public static long? TryGetContentLength(
+        this HttpClient http,
+        string requestUri,
+        bool ensureSuccess = true,
+        CancellationToken cancellationToken = default)
+    {
+        using var response = http.HeadAsync(requestUri, cancellationToken).Result;
 
         if (ensureSuccess)
             response.EnsureSuccessStatusCode();

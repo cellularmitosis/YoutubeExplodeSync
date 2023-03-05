@@ -15,7 +15,7 @@ namespace YoutubeExplode.Channels;
 /// <summary>
 /// Operations related to YouTube channels.
 /// </summary>
-public class ChannelClient
+public partial class ChannelClient
 {
     private readonly HttpClient _http;
     private readonly ChannelController _controller;
@@ -103,5 +103,45 @@ public class ChannelClient
         // Replace 'UC' in the channel ID with 'UU'
         var playlistId = "UU" + channelId.Value[2..];
         return new PlaylistClient(_http).GetVideosAsync(playlistId, cancellationToken);
+    }
+}
+
+public partial class ChannelClient
+{
+    public Channel Get(
+        ChannelId channelId,
+        CancellationToken cancellationToken = default
+    ) {
+        return Get(_controller.GetChannelPage(channelId, cancellationToken));
+    }
+
+    public Channel GetByUser(
+        UserName userName,
+        CancellationToken cancellationToken = default
+    ) {
+        return Get(_controller.GetChannelPage(userName, cancellationToken));
+    }
+
+    public Channel GetBySlug(
+        ChannelSlug channelSlug,
+        CancellationToken cancellationToken = default
+    ) {
+        return Get(_controller.GetChannelPage(channelSlug, cancellationToken));
+    }
+
+    public Channel GetByHandle(
+        ChannelHandle channelHandle,
+        CancellationToken cancellationToken = default
+    ) {
+        return Get(_controller.GetChannelPage(channelHandle, cancellationToken));
+    }
+
+    public PlaylistVideo[] GetUploads(
+        ChannelId channelId,
+        CancellationToken cancellationToken = default)
+    {
+        // Replace 'UC' in the channel ID with 'UU'
+        var playlistId = "UU" + channelId.Value[2..];
+        return new PlaylistClient(_http).GetVideos(playlistId, cancellationToken);
     }
 }

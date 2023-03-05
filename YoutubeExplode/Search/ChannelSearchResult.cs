@@ -8,7 +8,7 @@ namespace YoutubeExplode.Search;
 /// <summary>
 /// Metadata associated with a YouTube channel returned by a search query.
 /// </summary>
-public class ChannelSearchResult : ISearchResult, IChannel
+public partial class ChannelSearchResult : ISearchResult, IChannel
 {
     /// <inheritdoc />
     public ChannelId Id { get; }
@@ -35,4 +35,22 @@ public class ChannelSearchResult : ISearchResult, IChannel
     /// <inheritdoc />
     [ExcludeFromCodeCoverage]
     public override string ToString() => $"Channel ({Title})";
+}
+
+public partial class ChannelSearchResult : ISearchResult, IChannel
+{
+    public VideoSearchResult? asVideoSearchResult()
+    {
+        return null;
+    }
+
+    public ChannelSearchResult? asChannelSearchResult()
+    {
+        return this as ChannelSearchResult;
+    }
+
+    public PlaylistSearchResult? asPlaylistSearchResult()
+    {
+        return null;
+    }
 }

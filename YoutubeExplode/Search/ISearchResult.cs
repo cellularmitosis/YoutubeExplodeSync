@@ -16,7 +16,7 @@ namespace YoutubeExplode.Search;
 ///     </list>
 /// </p>
 /// </summary>
-public interface ISearchResult : IBatchItem
+public partial interface ISearchResult : IBatchItem
 {
     /// <summary>
     /// Result URL.
@@ -27,4 +27,11 @@ public interface ISearchResult : IBatchItem
     /// Result title.
     /// </summary>
     string Title { get; }
+}
+
+public partial interface ISearchResult : IBatchItem
+{
+    VideoSearchResult? asVideoSearchResult();
+    ChannelSearchResult? asChannelSearchResult();
+    PlaylistSearchResult? asPlaylistSearchResult();
 }
