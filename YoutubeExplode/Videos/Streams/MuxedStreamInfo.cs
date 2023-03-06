@@ -62,6 +62,20 @@ public partial class MuxedStreamInfo : IAudioStreamInfo, IVideoStreamInfo
 
 public partial class MuxedStreamInfo : IAudioStreamInfo, IVideoStreamInfo
 {
+    public string Id {
+        get {
+            string[] components = {
+                this.Container.Name,
+                this.VideoCodec,
+                this.VideoResolution.ToString(),
+                this.AudioCodec,
+                this.Bitrate.BitsPerSecond.ToString(),
+                this.Size.Bytes.ToString()
+            };
+            return string.Join(".", components);
+        }
+    }
+
     public AudioOnlyStreamInfo? asAudioOnlyStreamInfo()
     {
         return null;

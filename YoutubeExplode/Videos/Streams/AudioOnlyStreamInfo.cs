@@ -46,6 +46,18 @@ public partial class AudioOnlyStreamInfo : IAudioStreamInfo
 
 public partial class AudioOnlyStreamInfo : IAudioStreamInfo
 {
+    public string Id {
+        get {
+            string[] components = {
+                this.Container.Name,
+                this.AudioCodec,
+                this.Bitrate.BitsPerSecond.ToString(),
+                this.Size.Bytes.ToString()
+            };
+            return string.Join(".", components);
+        }
+    }
+
     public AudioOnlyStreamInfo? asAudioOnlyStreamInfo()
     {
         return this as AudioOnlyStreamInfo;

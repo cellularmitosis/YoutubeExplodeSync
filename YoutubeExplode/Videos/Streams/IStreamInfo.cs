@@ -59,6 +59,7 @@ public static class StreamInfoExtensions
 
 public partial interface IStreamInfo
 {
+    string Id { get; }
     AudioOnlyStreamInfo? asAudioOnlyStreamInfo();
     VideoOnlyStreamInfo? asVideoOnlyStreamInfo();
     MuxedStreamInfo? asMuxedStreamInfo();

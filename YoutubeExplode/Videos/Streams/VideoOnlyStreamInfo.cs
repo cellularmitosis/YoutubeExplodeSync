@@ -57,6 +57,19 @@ public partial class VideoOnlyStreamInfo : IVideoStreamInfo
 
 public partial class VideoOnlyStreamInfo : IVideoStreamInfo
 {
+    public string Id {
+        get {
+            string[] components = {
+                this.Container.Name,
+                this.VideoCodec,
+                this.VideoResolution.ToString(),
+                this.Bitrate.BitsPerSecond.ToString(),
+                this.Size.Bytes.ToString()
+            };
+            return string.Join(".", components);
+        }
+    }
+
     public AudioOnlyStreamInfo? asAudioOnlyStreamInfo()
     {
         return null;
