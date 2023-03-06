@@ -6,7 +6,7 @@ namespace YoutubeExplode.Videos.Streams;
 /// <summary>
 /// Metadata associated with a muxed (audio + video combined) media stream.
 /// </summary>
-public class MuxedStreamInfo : IAudioStreamInfo, IVideoStreamInfo
+public partial class MuxedStreamInfo : IAudioStreamInfo, IVideoStreamInfo
 {
     /// <inheritdoc />
     public string Url { get; }
@@ -58,4 +58,22 @@ public class MuxedStreamInfo : IAudioStreamInfo, IVideoStreamInfo
     /// <inheritdoc />
     [ExcludeFromCodeCoverage]
     public override string ToString() => $"Muxed ({VideoQuality} | {Container})";
+}
+
+public partial class MuxedStreamInfo : IAudioStreamInfo, IVideoStreamInfo
+{
+    public AudioOnlyStreamInfo? asAudioOnlyStreamInfo()
+    {
+        return null;
+    }
+
+    public VideoOnlyStreamInfo? asVideoOnlyStreamInfo()
+    {
+        return null;
+    }
+
+    public MuxedStreamInfo? asMuxedStreamInfo()
+    {
+        return this as MuxedStreamInfo;
+    }
 }

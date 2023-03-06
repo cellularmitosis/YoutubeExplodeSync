@@ -6,7 +6,7 @@ namespace YoutubeExplode.Videos.Streams;
 /// <summary>
 /// Metadata associated with a video-only media stream.
 /// </summary>
-public class VideoOnlyStreamInfo : IVideoStreamInfo
+public partial class VideoOnlyStreamInfo : IVideoStreamInfo
 {
     /// <inheritdoc />
     public string Url { get; }
@@ -53,4 +53,22 @@ public class VideoOnlyStreamInfo : IVideoStreamInfo
     /// <inheritdoc />
     [ExcludeFromCodeCoverage]
     public override string ToString() => $"Video-only ({VideoQuality} | {Container})";
+}
+
+public partial class VideoOnlyStreamInfo : IVideoStreamInfo
+{
+    public AudioOnlyStreamInfo? asAudioOnlyStreamInfo()
+    {
+        return null;
+    }
+
+    public VideoOnlyStreamInfo? asVideoOnlyStreamInfo()
+    {
+        return this as VideoOnlyStreamInfo;
+    }
+
+    public MuxedStreamInfo? asMuxedStreamInfo()
+    {
+        return null;
+    }
 }

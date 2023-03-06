@@ -8,7 +8,7 @@ namespace YoutubeExplode.Videos.Streams;
 /// <summary>
 /// Metadata associated with a media stream of a YouTube video.
 /// </summary>
-public interface IStreamInfo
+public partial interface IStreamInfo
 {
     /// <summary>
     /// Stream URL.
@@ -55,4 +55,11 @@ public static class StreamInfoExtensions
     public static IStreamInfo GetWithHighestBitrate(this IEnumerable<IStreamInfo> streamInfos) =>
         streamInfos.TryGetWithHighestBitrate() ??
         throw new InvalidOperationException("Input stream collection is empty.");
+}
+
+public partial interface IStreamInfo
+{
+    AudioOnlyStreamInfo? asAudioOnlyStreamInfo();
+    VideoOnlyStreamInfo? asVideoOnlyStreamInfo();
+    MuxedStreamInfo? asMuxedStreamInfo();
 }
